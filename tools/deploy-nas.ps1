@@ -26,7 +26,7 @@ try {
     Remove-Item -LiteralPath $archive -Force
   }
 
-  tar -czf $archive --exclude __pycache__ --exclude .pytest_cache --exclude .venv --exclude data --exclude logs --exclude uploads --exclude .git --exclude .env --exclude ".env.*" --exclude "*.sqlite" --exclude "*.sqlite3" --exclude "*.db" --exclude "*.log" --exclude "*.pem" --exclude "*.key" --exclude AGENTS.md --exclude .agents .
+  tar -czf $archive --exclude __pycache__ --exclude .pytest_cache --exclude .venv --exclude data --exclude logs --exclude uploads --exclude .git --exclude .env --exclude ".env.*" --exclude "*.sqlite" --exclude "*.sqlite3" --exclude "*.db" --exclude "*.log" --exclude "*.pem" --exclude "*.key" --exclude AGENTS.md --exclude NAS_DEPLOYMENT.local.md --exclude .agents .
   scp -O $archive "${sshTarget}:${remoteApp}/fund-report-deploy.tar.gz"
 
   $rebuildFlag = if ($Rebuild) { "1" } else { "0" }
