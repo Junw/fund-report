@@ -1,5 +1,5 @@
 [project]
-name = "stock-report"
+name = "fund-report"
 version = "0.1.0"
 description = "A-share close report dashboard for NAS deployment"
 requires-python = ">=3.11"
@@ -23,4 +23,3 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-

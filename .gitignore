@@ -13,6 +13,7 @@ uploads/
 .env.*
 *.env
 stock-report.env
+fund-report.env
 *.pem
 *.key
 id_rsa*

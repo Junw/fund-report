@@ -15,15 +15,15 @@ python -m venv .venv
 ## NAS Docker 部署
 
 ```sh
-mkdir -p /volume1/docker/stock-report
-/usr/local/bin/docker build -t stock-report:latest .
+mkdir -p /volume1/docker/fund-report
+/usr/local/bin/docker build -t fund-report:latest .
 /usr/local/bin/docker run -d \
-  --name stock-report \
+  --name fund-report \
   --restart unless-stopped \
   -p 8088:8088 \
-  -v /volume1/docker/stock-report:/data \
+  -v /volume1/docker/fund-report:/data \
   -e TZ=Asia/Shanghai \
-  stock-report:latest
+  fund-report:latest
 ```
 
 日常修改 Python、模板或 CSS 后，用快速部署脚本同步源码并重启容器，不会重建依赖层：
@@ -41,8 +41,8 @@ mkdir -p /volume1/docker/stock-report
 也可以使用环境变量：
 
 ```powershell
-$env:STOCK_REPORT_NAS_HOST="NAS_IP"
-$env:STOCK_REPORT_NAS_USER="root"
+$env:FUND_REPORT_NAS_HOST="NAS_IP"
+$env:FUND_REPORT_NAS_USER="root"
 .\tools\deploy-nas.ps1
 ```
 
