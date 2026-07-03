@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">个人持仓</p>
+      <h1>持仓评分</h1>
+      <p class="muted">评分基于本地行情、近 3/7 日与 1 个月表现、组合权重计算；仅供个人研究记录。</p>
+    </div>
+  </section>
+
+  {% if message %}
+    <section class="notice">{{ message }}</section>
+  {% endif %}
+
+  {% if import_debug %}
+    <section class="tool-panel import-debug">
+      <details open>
+        <summary>模型识别调试结果</summary>
+        {% if import_debug.error %}<p class="down">{{ import_debug.error }}</p>{% endif %}
+        <h3>模型原始返回</h3>
+        <pre>{{ import_debug.raw_response }}</pre>
+        {% for row in import_debug.rows %}
+          <details>
+            <summary>第 {{ row.index }} 条：原始字段与系统归一化结果</summary>
+            <div class="debug-grid">
+              <div><h3>原始字段</h3><pre>{{ row.raw }}</pre></div>
+              <div><h3>归一化结果</h3><pre>{{ row.normalized }}</pre></div>
+            </div>
+          </details>
+        {% endfor %}
+      </details>
+    </section>
+  {% endif %}
+
+  <section class="portfolio-grid">
+    <article class="tool-panel">
+      <h2>录入持仓</h2>
+      <label>
+        搜索基金
+        <input id="holding-search-input" type="search" placeholder="名称或代码，点击结果自动填充">
+      </label>
+      <div id="holding-search-results" class="search-results compact muted">先搜索，再录入份额。</div>
+      <form class="holding-form" id="holding-form" method="post" action="/holdings">
+        <label>
+          类型
+          <select name="asset_type" id="holding-asset-type">
+            <option value="fund">权益基金</option>
+            <option value="etf">ETF</option>
+          </select>
+        </label>
+        <label>
+          代码
+          <input name="code" id="holding-code" required>
+        </label>
+        <label>
+          名称
+          <input name="name" id="holding-name" required>
+        </label>
+        <label>
+          持有份额
+          <input name="shares" type="number" min="0" step="0.0001" placeholder="可留空，按持仓金额估算">
+        </label>
+        <label>
+          持仓金额/成本金额
+          <input name="cost_amount" type="number" min="0" step="0.01">
+        </label>
+        <label>
+          持有收益率 (%)
+          <input name="return_rate" type="number" step="0.01" placeholder="例如 12.35 或 -3.20">
+        </label>
+        <label class="wide">
+          备注
+          <input name="note">
+        </label>
+        <button class="button" id="holding-submit" type="submit">保存持仓</button>
+      </form>
+    </article>
+
+    <article class="tool-panel">
+      <h2>截图导入</h2>
+      <p class="muted">上传包含基金名称、代码、份额的持仓截图。需要配置支持图片输入的 OpenAI-compatible 大模型。</p>
+      <form class="holding-form" method="post" action="/holdings/import-image" enctype="multipart/form-data">
+        <label class="wide">
+          持仓截图
+          <input name="images" type="file" accept="image/*" multiple required>
+        </label>
+        <button class="button" type="submit">解析截图</button>
+      </form>
+      <p class="config-state {{ 'success' if llm_configured else 'failed' }}">
+        {{ "大模型已配置，可尝试截图解析和总结。" if llm_configured else "大模型未配置：当前只能手工录入，评分仍可使用。" }}
+      </p>
+    </article>
+
+    <article class="tool-panel portfolio-summary">
+      <h2>组合概览</h2>
+      <div class="summary-metrics">
+        <div><span>持仓数</span><strong>{{ summary.holding_count }}</strong></div>
+        <div><span>估算市值</span><strong>{{ "%.2f"|format(summary.total_market_value or 0) }}</strong></div>
+        <div><span>加权评分</span><strong>{{ "%.1f"|format(summary.weighted_score or 0) }}</strong></div>
+      </div>
+      {% if llm_text %}
+        <div class="llm-summary">{{ llm_text }}</div>
+      {% else %}
+        <p class="muted">配置大模型后，这里会生成组合层面的风险和优化摘要。</p>
+      {% endif %}
+    </article>
+
+    {% if signal_summary and signal_summary.event_date %}
+    <article class="tool-panel portfolio-summary">
+      <h2>持仓信号 ({{ signal_summary.event_date }})</h2>
+      <div class="summary-metrics">
+        <div><span>加权关注度</span><strong>{{ "%.1f"|format(signal_summary.weighted_attention_score or 0) }}</strong></div>
+      </div>
+      {% if signal_summary.label_distribution %}
+        <div class="label-distribution" style="margin-top: 0.5rem;">
+          {% for label_text, count in signal_summary.label_distribution.items() %}
+            <span class="label-tag">{{ label_text }}: {{ count }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <p class="muted" style="margin-top: 0.5rem;">基于 v2 中期选基信号模型的研究参考标签（建仓观察、趋势确认、持有观察、减仓观察、风险升高、等待修复、历史不足）。</p>
+    </article>
+    {% endif %}
+  </section>
+
+  <section class="table-section">
+    <table>
+      <thead>
+        <tr>
+          <th>基金</th>
+          <th>份额</th>
+          <th>最新净值</th>
+          <th>估算市值</th>
+          <th>持有收益率</th>
+          <th>权重</th>
+          <th>1日</th>
+          <th>7日</th>
+          <th>1月</th>
+          <th>评分</th>
+          <th>信号</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in analyses %}
+          <tr>
+            <td>
+              <a class="name-cell fund-link" href="/funds/{{ item.holding.code }}">{{ item.holding.name }}</a>
+              <span class="code-cell">{{ item.holding.code }} · {{ "ETF" if item.holding.asset_type == "etf" else "权益基金" }}</span>
+            </td>
+            <td>{{ "%.2f"|format(item.holding.shares or 0) }}</td>
+            <td>{{ "%.4f"|format(item.latest_close or 0) }}</td>
+            <td>{{ "%.2f"|format(item.market_value or 0) }}</td>
+            <td class="{{ 'up' if (item.holding.return_rate or 0) >= 0 else 'down' }}">
+              {% if item.holding.return_rate is not none %}{{ "%.2f"|format(item.holding.return_rate) }}%{% else %}<span class="muted">--</span>{% endif %}
+            </td>
+            <td>{{ "%.1f"|format(item.weight or 0) }}%</td>
+            <td class="{{ 'up' if (item.returns.get('1d') or 0) >= 0 else 'down' }}">{{ "%.2f"|format(item.returns.get("1d") or 0) }}%</td>
+            <td class="{{ 'up' if (item.returns.get('7d') or 0) >= 0 else 'down' }}">{{ "%.2f"|format(item.returns.get("7d") or 0) }}%</td>
+            <td class="{{ 'up' if (item.returns.get('1m') or 0) >= 0 else 'down' }}">{{ "%.2f"|format(item.returns.get("1m") or 0) }}%</td>
+            <td><span class="score-badge">{{ item.score }} · {{ item.level }}</span></td>
+            <td>{{ item.signals[:3] | join("；") }}</td>
+            <td>
+              <button
+                class="link-button edit-holding"
+                type="button"
+                data-code="{{ item.holding.code }}"
+                data-name="{{ item.holding.name }}"
+                data-type="{{ item.holding.asset_type }}"
+                data-shares="{{ item.holding.shares }}"
+                data-cost="{{ item.holding.cost_amount or '' }}"
+                data-return-rate="{{ item.holding.return_rate if item.holding.return_rate is not none else '' }}"
+                data-note="{{ item.holding.note or '' }}"
+              >编辑</button>
+              <form method="post" action="/holdings/{{ item.holding.id }}/delete">
+                <button class="link-button" type="submit">删除</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="12" class="muted">暂无持仓。可以通过搜索后手工录入，或配置大模型后上传截图导入。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <p class="disclaimer">仅供个人研究记录，不构成投资建议。评分是规则化信号，不代表未来收益。</p>
+
+  <script>
+    const searchInput = document.getElementById("holding-search-input");
+    const searchResults = document.getElementById("holding-search-results");
+    let searchTimer = null;
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const q = searchInput.value.trim();
+      if (!q) {
+        searchResults.className = "search-results compact muted";
+        searchResults.textContent = "先搜索，再录入份额。";
+        return;
+      }
+      searchTimer = setTimeout(async () => {
+        const response = await fetch(`/api/funds/search?q=${encodeURIComponent(q)}`);
+        const rows = await response.json();
+        if (!rows.length) {
+          searchResults.className = "search-results compact muted";
+          searchResults.textContent = "没有匹配结果。";
+          return;
+        }
+        searchResults.className = "search-results compact";
+        searchResults.innerHTML = rows.slice(0, 8).map(row => `
+          <button class="search-result as-button" type="button" data-code="${row.code}" data-name="${row.name}" data-type="${row.asset_type}">
+            <strong>${row.name}</strong>
+            <span>${row.code} · ${row.asset_type === "etf" ? "ETF" : "权益基金"}</span>
+          </button>
+        `).join("");
+      }, 220);
+    });
+    searchResults.addEventListener("click", event => {
+      const button = event.target.closest("button[data-code]");
+      if (!button) return;
+      document.getElementById("holding-code").value = button.dataset.code;
+      document.getElementById("holding-name").value = button.dataset.name;
+      document.getElementById("holding-asset-type").value = button.dataset.type;
+    });
+
+    document.querySelectorAll(".edit-holding").forEach(button => {
+      button.addEventListener("click", () => {
+        document.getElementById("holding-code").value = button.dataset.code;
+        document.getElementById("holding-name").value = button.dataset.name;
+        document.getElementById("holding-asset-type").value = button.dataset.type;
+        document.querySelector('#holding-form input[name="shares"]').value = button.dataset.shares;
+        document.querySelector('#holding-form input[name="cost_amount"]').value = button.dataset.cost;
+        document.querySelector('#holding-form input[name="return_rate"]').value = button.dataset.returnRate;
+        document.querySelector('#holding-form input[name="note"]').value = button.dataset.note;
+        document.getElementById("holding-submit").textContent = "更新持仓";
+        document.getElementById("holding-form").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  </script>
+{% endblock %}

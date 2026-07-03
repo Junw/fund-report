@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">{{ selected_date or "暂无日期" }}</p>
+      <h1>榜单</h1>
+    </div>
+  </section>
+
+  <form class="filters" method="get" action="/rankings">
+    <label>
+      日期
+      <select name="date">
+        {% for report in reports %}
+          <option value="{{ report.trade_date }}" {% if selected_date == report.trade_date %}selected{% endif %}>{{ report.trade_date }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      类型
+      <select name="asset">
+        {% for key, label in asset_labels.items() %}
+          <option value="{{ key }}" {% if key == asset %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      窗口
+      <select name="window">
+        {% for key, label in window_labels.items() %}
+          <option value="{{ key }}" {% if key == window %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">筛选</button>
+  </form>
+
+  <section class="table-section">
+    <table>
+      <thead>
+        <tr>
+          <th>名次</th>
+          <th>代码</th>
+          <th>名称</th>
+          <th>涨幅</th>
+          <th>收盘/净值</th>
+          <th>成交额</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.rank }}</td>
+            <td>{{ row.code }}</td>
+            <td>{{ row.name }}</td>
+            <td class="{{ 'up' if (row.value or 0) >= 0 else 'down' }}">{{ "%.2f"|format(row.value or 0) }}%</td>
+            <td>{{ "%.4f"|format(row.close or 0) }}</td>
+            <td>{{ "%.1f"|format((row.amount or 0) / 100000000) }} 亿</td>
+            <td>{{ row.note or "" }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="muted">暂无数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+{% endblock %}
+

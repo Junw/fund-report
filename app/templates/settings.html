@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">系统设置</p>
+      <h1>大模型配置</h1>
+      <p class="muted">用于持仓截图识别和组合总结。配置保存在 NAS 数据库中，页面只展示脱敏密钥。</p>
+    </div>
+  </section>
+
+  {% if saved %}
+    <section class="notice">配置已保存。</section>
+  {% endif %}
+
+  <section class="settings-grid">
+    <article class="tool-panel">
+      <form class="settings-form" method="post" action="/settings">
+        <label>
+          API 地址
+          <input name="llm_base_url" value="{{ llm.base_url }}" placeholder="https://api.example.com/v1">
+        </label>
+        <label>
+          模型
+          <input name="llm_model" value="{{ llm.model }}" placeholder="例如 gpt-4o-mini 或 qwen-vl-plus">
+        </label>
+        <label>
+          API Key
+          <input name="llm_api_key" type="password" placeholder="留空则不修改当前密钥">
+        </label>
+        <button class="button" type="submit">保存配置</button>
+      </form>
+    </article>
+
+    <article class="tool-panel">
+      <h2>当前状态</h2>
+      <div class="setting-status">
+        <div><span>API 地址</span><strong>{{ llm.base_url or "未配置" }}</strong></div>
+        <div><span>模型</span><strong>{{ llm.model or "未配置" }}</strong></div>
+        <div><span>密钥</span><strong>{{ llm.api_key_masked }}</strong></div>
+        <div><span>可用状态</span><strong class="{{ 'up' if llm.configured else 'down' }}">{{ "已配置" if llm.configured else "未完整配置" }}</strong></div>
+      </div>
+      <p class="muted">需要支持 OpenAI-compatible `/chat/completions`。截图导入还要求模型支持图片输入。</p>
+    </article>
+  </section>
+{% endblock %}

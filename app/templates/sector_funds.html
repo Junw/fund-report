@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">{{ trade_date }}</p>
+      <h1>{{ sector }}相关基金</h1>
+      <p class="muted">根据基金名称和分类关键词匹配，优先展示 ETF，A/C 份额仅保留 A 类。</p>
+    </div>
+    <a class="button ghost" href="/heat">返回板块热度</a>
+  </section>
+
+  <section class="table-section sector-fund-table">
+    <table>
+      <thead>
+        <tr><th>类型</th><th>基金</th><th>最新价/净值</th><th>当日涨跌</th><th>ETF 溢价率</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for fund in funds %}
+          <tr>
+            <td><span class="asset-tag">{{ "ETF" if fund.asset_type == "etf" else "权益基金" }}</span></td>
+            <td><a class="name-cell fund-link" href="{{ fund.url }}" target="_blank" rel="noopener noreferrer">{{ fund.name }}</a><span class="code-cell">{{ fund.code }}</span></td>
+            <td>{% if fund.close is not none %}{{ "%.4f"|format(fund.close) }}{% else %}<span class="muted">--</span>{% endif %}</td>
+            <td class="{{ 'up' if (fund.change_pct or 0) >= 0 else 'down' }}">{% if fund.change_pct is not none %}{{ "%.2f"|format(fund.change_pct) }}%{% else %}<span class="muted">--</span>{% endif %}</td>
+            <td>{% if fund.premium is not none %}{{ "%.2f"|format(fund.premium) }}%{% else %}<span class="muted">--</span>{% endif %}</td>
+            <td><a href="{{ fund.url }}" target="_blank" rel="noopener noreferrer">东方财富</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="muted">未在当前基金库中找到名称匹配项。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <p class="disclaimer">相关基金为关键词映射结果，不代表持仓纯度或跟踪误差排名；仅供个人研究记录，不构成投资建议。</p>
+{% endblock %}

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "A股收盘日报" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}?v=20260701-heatlayout1">
+    {% block head_scripts %}{% endblock %}
+  </head>
+  <body>
+    {% set current_path = request.url.path if request is defined else "/" %}
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="sidebar-brand" href="/">A股收盘日报</a>
+        <nav class="sidebar-nav" aria-label="主导航">
+          <div class="sidebar-section">
+            <span class="sidebar-section-title">市场</span>
+            <a class="sidebar-link {{ 'active' if current_path == '/' or current_path.startswith('/reports') else '' }}" href="/">
+              <span class="nav-icon">日</span><span>日报</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/rankings') else '' }}" href="/rankings">
+              <span class="nav-icon">榜</span><span>榜单</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/heat') or current_path.startswith('/sector-funds') else '' }}" href="/heat">
+              <span class="nav-icon">热</span><span>热度</span>
+            </a>
+          </div>
+          <div class="sidebar-section">
+            <span class="sidebar-section-title">基金</span>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/funds') else '' }}" href="/funds">
+              <span class="nav-icon">基</span><span>基金搜索</span>
+            </a>
+          </div>
+          <div class="sidebar-section">
+            <span class="sidebar-section-title">持仓</span>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/holdings') else '' }}" href="/holdings">
+              <span class="nav-icon">仓</span><span>持仓评分</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/watchlist') else '' }}" href="/watchlist">
+              <span class="nav-icon">观</span><span>观察池</span>
+            </a>
+          </div>
+          <div class="sidebar-section">
+            <span class="sidebar-section-title">工具</span>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/signals') else '' }}" href="/signals">
+              <span class="nav-icon">信</span><span>信号</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/research') else '' }}" href="/research">
+              <span class="nav-icon">研</span><span>研究</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/jobs') else '' }}" href="/jobs">
+              <span class="nav-icon">任</span><span>任务</span>
+            </a>
+            <a class="sidebar-link {{ 'active' if current_path.startswith('/settings') else '' }}" href="/settings">
+              <span class="nav-icon">设</span><span>设置</span>
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <div class="main-area">
+        <header class="top-strip">
+          <span class="top-strip-title">{% block page_title %}A股收盘日报{% endblock %}</span>
+          <span class="top-strip-meta">{% block top_meta %}{% endblock %}</span>
+        </header>
+        <main class="content-area {{ 'content-area-wide' if current_path.startswith('/heat') else '' }}">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

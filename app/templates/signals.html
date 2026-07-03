@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">中期选基信号</p>
+      <h1>信号面板</h1>
+      <p class="muted">研究用途，不构成投资建议。标签基于因子得分的关注度分级。</p>
+    </div>
+    <div class="head-actions">
+      <a class="button ghost" href="/research">回测研究</a>
+      <a class="button" href="/jobs">数据任务</a>
+    </div>
+  </section>
+
+  <section class="research-status-grid">
+    <article class="tool-panel"><span class="muted">信号日期</span><strong>{{ event_date or "尚未计算" }}</strong></article>
+    <article class="tool-panel"><span class="muted">模型版本</span><strong>{{ model_versions[0].model_version if model_versions else "—" }}</strong></article>
+    <article class="tool-panel"><span class="muted">模型状态</span><strong>{{ model_versions[0].status if model_versions else "—" }}</strong></article>
+  </section>
+
+  {% if model_versions %}
+  <section>
+    <div class="section-head"><h2>模型版本记录</h2></div>
+    <table>
+      <thead><tr><th>版本</th><th>状态</th><th>描述</th><th>更新时间</th></tr></thead>
+      <tbody>
+        {% for mv in model_versions %}
+          <tr>
+            <td><code>{{ mv.model_version }}</code></td>
+            <td><span class="status {{ mv.status }}">{{ mv.status }}</span></td>
+            <td>{{ mv.notes or "—" }}</td>
+            <td>{{ mv.updated_at or "—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <section>
+    <div class="section-head"><h2>信号分布</h2><span class="muted">当前日期标签计数</span></div>
+    <div class="progress-grid">
+      {% for key, label_text in signal_labels.items() %}
+        <article class="tool-panel compact-panel">
+          <strong>{{ label_text }}</strong>
+          <span class="label-count">{{ label_counts.get(key, 0) }}</span>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head table-title">
+      <h2>信号列表</h2>
+      <div class="filter-row">
+        {% for key, label_text in signal_labels.items() %}
+          <a class="button small {{ 'active' if selected_label == key else 'ghost' }}" href="/signals?label={{ key }}">{{ label_text }}</a>
+        {% endfor %}
+        {% if selected_label %}
+          <a class="button small ghost" href="/signals">全部</a>
+        {% endif %}
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>基金</th><th>类型</th><th>信号标签</th><th>得分</th><th>置信度</th><th>理由</th><th></th></tr></thead>
+      <tbody>
+        {% for row in events %}
+          <tr>
+            <td><a class="name-cell fund-link" href="/funds/{{ row.code }}">{{ row.name }}</a><span class="code-cell">{{ row.code }} · {{ row.asset_type|upper }}</span></td>
+            <td>{{ row.risk_level or "—" }}</td>
+            <td><span class="confidence-badge {{ row.action }}">{{ signal_labels.get(row.action, row.action) }}</span></td>
+            <td><strong class="recommend-score">{{ "%.1f"|format(row.score or 0) }}</strong></td>
+            <td>{{ "%.0f"|format(row.confidence) }}%</td>
+            <td class="evidence-cell">{{ row.reason_json.get("evidence", [])[:2]|join("；") if row.reason_json else "—" }}</td>
+            <td>
+              <form method="post" action="/watchlist">
+                <input type="hidden" name="asset_type" value="{{ row.asset_type }}">
+                <input type="hidden" name="code" value="{{ row.code }}">
+                <input type="hidden" name="name" value="{{ row.name }}">
+                <input type="hidden" name="reason" value="信号 {{ signal_labels.get(row.action, row.action) }} {{ row.score }} 分">
+                <button class="link-button" type="submit">加入观察</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="muted">尚无 v2 信号数据。运行信号计算任务生成。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <p class="disclaimer">以上标签为因子模型输出的研究参考，不构成投资建议。</p>
+{% endblock %}

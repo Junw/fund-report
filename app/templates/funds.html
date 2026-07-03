@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">基金检索</p>
+      <h1>基金搜索</h1>
+      <p class="muted">按基金名称或代码模糊搜索当前数据库中已收录的权益基金和 ETF。</p>
+    </div>
+  </section>
+
+  <section class="tool-panel">
+    <label>
+      基金名称或代码
+      <input id="fund-search-input" type="search" placeholder="例如：新能源、半导体、510300、027381" autocomplete="off">
+    </label>
+    <div id="fund-search-results" class="search-results muted">输入关键词开始搜索。</div>
+  </section>
+
+  <script>
+    const input = document.getElementById("fund-search-input");
+    const results = document.getElementById("fund-search-results");
+    let timer = null;
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      const q = input.value.trim();
+      if (!q) {
+        results.className = "search-results muted";
+        results.textContent = "输入关键词开始搜索。";
+        return;
+      }
+      timer = setTimeout(async () => {
+        const response = await fetch(`/api/funds/search?q=${encodeURIComponent(q)}`);
+        const rows = await response.json();
+        if (!rows.length) {
+          results.className = "search-results muted";
+          results.textContent = "没有匹配结果。";
+          return;
+        }
+        results.className = "search-results";
+        results.innerHTML = rows.map(row => `
+          <div class="search-result">
+            <a href="/funds/${row.code}" style="text-decoration: none; color: inherit;">
+              <strong>${row.name}</strong>
+              <span>${row.code} · ${row.asset_type === "etf" ? "ETF" : "权益基金"}${row.category ? " · " + row.category : ""}</span>
+            </a>
+            <a href="https://fund.eastmoney.com/${row.code}.html" target="_blank" rel="noopener noreferrer" class="external-link" title="东方财富">↗</a>
+          </div>
+        `).join("");
+      }, 220);
+    });
+  </script>
+{% endblock %}

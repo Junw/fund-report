@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head"><div><p class="eyebrow">后台任务</p><h1>任务状态</h1><p class="muted">同名任务不可重复运行；长任务按限速批次执行并保存进度。</p></div></section>
+  {% set actions = [
+    ("close", "收盘任务", "拉取股票、ETF、行业和市场指标，生成日报。"),
+    ("fund_refresh", "刷新基金", "刷新开放式权益基金净值与榜单。"),
+    ("sector_backfill", "回填板块历史", "回填行业历史，用于板块热度。"),
+    ("fund_history_backfill", "回填基金净值", "分批回填主份额近三年净值，可反复续跑。"),
+    ("fund_metadata_refresh", "刷新基金资料", "分批获取规模、经理、费率和跟踪标的。"),
+    ("fund_holdings_refresh", "刷新持仓披露", "分批获取季度重仓股，用于行业暴露。"),
+    ("signal_compute", "计算实验信号", "计算中期选基分数与置信度。"),
+    ("backtest", "运行回测", "用历史月度信号检查生产门槛。")
+  ] %}
+  <section class="job-actions research-jobs">
+    {% for key, title, body in actions %}
+      <article class="tool-panel"><h2>{{ title }}</h2><p class="muted">{{ body }}</p><button class="button {{ 'ghost' if not loop.first }} job-button" data-job="{{ key }}" type="button">{{ title }}</button></article>
+    {% endfor %}
+    <article class="tool-panel historical-job-panel">
+      <h2>补充历史日报</h2>
+      <p class="muted">选择最近 30 天内日期，基于本地已保存行情重新生成或生成该日日报；无行情会明确标记为空。</p>
+      <label>
+        日期
+        <select id="historical-report-date">
+          {% for item in historical_dates %}
+            <option value="{{ item.isoformat() }}">{{ item.isoformat() }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="button ghost job-button" data-job="historical_report" data-date-input="historical-report-date" type="button">补充历史日报</button>
+    </article>
+  </section>
+  <section class="table-section"><table><thead><tr><th>ID</th><th>任务</th><th>状态</th><th>开始</th><th>结束</th><th>消息</th></tr></thead><tbody id="job-table-body">
+    {% for job in jobs %}<tr><td>{{ job.id }}</td><td>{{ job.job_name }}</td><td><span class="status {{ job.status }}">{{ job.status }}</span></td><td>{{ format_datetime(job.started_at) or "" }}</td><td>{{ format_datetime(job.finished_at) or "" }}</td><td>{{ job.message or "" }}</td></tr>
+    {% else %}<tr><td colspan="6" class="muted">暂无任务记录</td></tr>{% endfor %}
+  </tbody></table></section>
+  <script>
+    const buttons = [...document.querySelectorAll(".job-button")];
+    const labels = Object.fromEntries(buttons.map(button => [button.dataset.job, button.textContent]));
+    buttons.forEach(button => button.addEventListener("click", async () => {
+      setRunning(button.dataset.job, true);
+      const params = new URLSearchParams({ job: button.dataset.job });
+      if (button.dataset.dateInput) {
+        const input = document.getElementById(button.dataset.dateInput);
+        if (input && input.value) params.set("date", input.value);
+      }
+      const response = await fetch(`/api/jobs/run?${params.toString()}`, { method: "POST" });
+      if (!response.ok && response.status !== 409) setRunning(button.dataset.job, false);
+      pollJobs();
+    }));
+    async function pollJobs() {
+      const response = await fetch("/api/jobs/status"); const rows = await response.json(); renderJobs(rows);
+      const running = new Set(rows.filter(row => row.status === "running").map(row => row.job_name));
+      buttons.forEach(button => setRunning(button.dataset.job, running.has(button.dataset.job)));
+      if (running.size) setTimeout(pollJobs, 2500);
+    }
+    function setRunning(job, running) { const button = buttons.find(item => item.dataset.job === job); if (!button) return; button.disabled = running; button.textContent = running ? "运行中..." : labels[job]; }
+    function escapeHtml(value) { const node = document.createElement("div"); node.textContent = value ?? ""; return node.innerHTML; }
+    function renderJobs(rows) { const body = document.getElementById("job-table-body"); body.innerHTML = rows.length ? rows.map(row => `<tr><td>${row.id}</td><td>${escapeHtml(row.job_name)}</td><td><span class="status ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td><td>${escapeHtml(row.started_at)}</td><td>${escapeHtml(row.finished_at)}</td><td>${escapeHtml(row.message)}</td></tr>`).join("") : '<tr><td colspan="6" class="muted">暂无任务记录</td></tr>'; }
+    pollJobs();
+  </script>
+{% endblock %}

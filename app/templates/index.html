@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if not report %}
+    <section class="empty">
+      <h1>还没有生成日报</h1>
+      <p>可以在任务页手动触发收盘任务，或等待交易日 16:30 自动生成。</p>
+      <a class="button" href="/jobs">查看任务</a>
+    </section>
+  {% else %}
+    <section class="research-entry"><div><strong>中期选基实验</strong><span>新评分在通过样本外回测前不会替换首页推荐。</span></div><a href="/research">查看实验信号</a></section>
+    {% include "report_content.html" %}
+  {% endif %}
+{% endblock %}

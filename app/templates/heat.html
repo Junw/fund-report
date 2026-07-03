@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block head_scripts %}<script src="{{ url_for('static', path='/vendor/echarts.min.js') }}?v=5.5.1"></script>{% endblock %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">{{ selected_date or "暂无日期" }}</p>
+      <h1>板块热度</h1>
+      <p class="muted">推荐度综合趋势、持续性、相关新闻政策与 ETF 折溢价；仅用于方向筛选。</p>
+    </div>
+  </section>
+
+  <form class="filters" method="get" action="/heat">
+    <label>
+      日期
+      <select name="date">
+        {% for report in reports %}
+          <option value="{{ report.trade_date }}" {% if selected_date == report.trade_date %}selected{% endif %}>{{ report.trade_date }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      类型
+      <select name="asset">
+        {% for key, label in asset_labels.items() %}
+          <option value="{{ key }}" {% if asset == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">筛选</button>
+  </form>
+
+  {% set ok_rows = rows | rejectattr("heat_score", "none") | list %}
+  {% if ok_rows %}
+    <section class="heat-layout">
+      <div class="table-section">
+        <table>
+          <thead>
+            <tr>
+              <th>排名</th>
+              <th>板块</th>
+              <th>近 7 日</th>
+              <th>近 1 月</th>
+              <th>热度</th>
+              <th>状态</th>
+              <th>动作</th>
+              <th>推荐度</th>
+              <th>等级</th>
+              <th>相关基金</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ok_rows %}
+              <tr>
+                <td>{{ row.rank }}</td>
+                <td><a class="name-cell fund-link" href="{{ sector_url(row.code, row.name) }}" target="_blank" rel="noopener noreferrer">{{ row.name }}</a></td>
+                <td class="{{ 'up' if (row.return_7d or 0) >= 0 else 'down' }}">{{ "%.2f%%"|format(row.return_7d) if row.return_7d is not none else "历史不足" }}</td>
+                <td class="{{ 'up' if (row.return_1m or 0) >= 0 else 'down' }}">{{ "%.2f%%"|format(row.return_1m) if row.return_1m is not none else "历史不足" }}</td>
+                <td><strong>{{ "%.1f"|format(row.heat_score or 0) }}</strong></td>
+                <td><span class="status-pill {{ row.data_status }}">{{ row.status_label }}</span></td>
+                <td><strong>{{ row.action_label }}</strong></td>
+                <td>
+                  <strong class="recommend-score">{{ "%.1f"|format(row.recommendation.score or 0) }}</strong>
+                  <span class="code-cell">{{ row.recommendation.level }}</span>
+                </td>
+                <td><span class="heat-badge {{ row.heat_level }}">{{ {"hot":"热","warming":"升温","neutral":"中性","cooling":"降温","cold":"冷"}.get(row.heat_level, row.heat_level) }}</span></td>
+                <td><a href="{{ row.funds_url }}">查看 {{ row.recommendation.related_count }} 只</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div id="heat-chart" class="chart heat-chart"></div>
+    </section>
+  {% else %}
+    <section class="empty">
+      <h2>历史不足</h2>
+      <p>当前连当日涨跌幅也不足，无法计算临时热度。行业可在任务页运行“回填板块历史”；概念题材需要收盘任务成功写入后展示。</p>
+      <a class="button" href="/jobs">去任务页</a>
+    </section>
+  {% endif %}
+
+  <script>
+    const heatRows = {{ ok_rows_json | tojson }};
+    if (heatRows.length) {
+      const rows = heatRows.slice(0, 32).reverse();
+      const chart = echarts.init(document.getElementById("heat-chart"));
+      const colors = { hot: "#c24135", warming: "#f59e0b", neutral: "#2563eb", cooling: "#0f8a4b", cold: "#64748b" };
+      chart.setOption({
+        grid: { left: 112, right: 42, top: 16, bottom: 26 },
+        xAxis: { type: "value", max: 100 },
+        yAxis: {
+          type: "category",
+          data: rows.map(row => row.name),
+          triggerEvent: true,
+          axisLabel: { width: 98, overflow: "truncate", color: "#2563eb" }
+        },
+        series: [{
+          type: "bar",
+          data: rows.map(row => ({ value: row.heat_score, itemStyle: { color: colors[row.heat_level] || "#2563eb" } })),
+          label: { show: true, position: "right", formatter: value => Number(value.value).toFixed(1) }
+        }],
+        tooltip: {
+          trigger: "axis",
+          formatter: params => {
+            const row = rows[params[0].dataIndex];
+            const rec = row.recommendation || {};
+            const premium = rec.avg_abs_premium == null ? "无可用数据" : `${Number(rec.avg_abs_premium).toFixed(2)}%`;
+            const r7 = row.return_7d == null ? "历史不足" : `${Number(row.return_7d).toFixed(2)}%`;
+            const r1m = row.return_1m == null ? "历史不足" : `${Number(row.return_1m).toFixed(2)}%`;
+            return `${row.name}<br>热度：${Number(row.heat_score).toFixed(1)}（${row.status_label}）<br>动作：${row.action_label}<br>推荐度：${Number(rec.score || 0).toFixed(1)}<br>趋势 / 持续：${rec.trend_score} / ${rec.persistence_score}<br>新闻 / 折溢价：${rec.news_score} / ${rec.premium_score}<br>ETF 平均绝对折溢价：${premium}<br>近7日：${r7}<br>近1月：${r1m}`;
+          }
+        }
+      });
+      chart.on("click", params => {
+        const row = params.componentType === "yAxis"
+          ? rows.find(item => item.name === params.value)
+          : rows[params.dataIndex];
+        if (row && row.url) window.open(row.url, "_blank", "noopener,noreferrer");
+      });
+      window.addEventListener("resize", () => chart.resize());
+    }
+  </script>
+{% endblock %}

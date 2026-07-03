@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="report-head">
+    <div>
+      <p class="eyebrow">基金详情</p>
+      <h1>{{ asset.name }}</h1>
+      <p class="muted">{{ asset.code }} · {{ "ETF" if asset.asset_type == "etf" else "权益基金" }}{% if asset.category %} · {{ asset.category }}{% endif %}</p>
+    </div>
+    <div class="head-actions">
+      <a class="button ghost" href="/signals">返回信号</a>
+      <a class="button" href="https://fund.eastmoney.com/{{ asset.code }}.html" target="_blank" rel="noopener">东方财富</a>
+    </div>
+  </section>
+
+  {% if signal %}
+  <section class="research-status-grid">
+    <article class="tool-panel">
+      <span class="muted">信号操作</span>
+      <strong><span class="confidence-badge {{ signal.action }}">{{ signal_labels.get(signal.action, signal.action) }}</span></strong>
+    </article>
+    <article class="tool-panel">
+      <span class="muted">信号得分</span>
+      <strong class="recommend-score">{{ "%.1f"|format(signal.score or 0) }}</strong>
+    </article>
+    <article class="tool-panel">
+      <span class="muted">置信度</span>
+      <strong>{{ "%.0f"|format(signal.confidence) }}%</strong>
+    </article>
+    <article class="tool-panel">
+      <span class="muted">风险等级</span>
+      <strong>{{ signal.risk_level or "—" }}</strong>
+    </article>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>信号详情</h2></div>
+    <div class="summary-metrics">
+      {% if signal.reason_json and signal.reason_json.components %}
+        {% for name, value in signal.reason_json.components.items() %}
+          <div><span>{{ name }}</span><strong>{{ "%.1f"|format(value or 0) }}</strong></div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    {% if signal.reason_json and signal.reason_json.evidence %}
+      <p class="muted" style="margin-top: 1rem;">分析依据：{{ signal.reason_json.evidence[:3]|join("；") }}</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="tool-panel">
+    <p class="muted">该基金尚无 v2 信号数据。运行信号计算任务后查看。</p>
+  </section>
+  {% endif %}
+
+  {% if feature %}
+  <section>
+    <div class="section-head"><h2>因子特征 ({{ feature.trade_date }})</h2></div>
+    <div class="summary-metrics">
+      <div><span>20日收益</span><strong>{{ "%.2f%%"|format(feature.return_20d) if feature.return_20d is not none else "—" }}</strong></div>
+      <div><span>60日收益</span><strong>{{ "%.2f%%"|format(feature.return_60d) if feature.return_60d is not none else "—" }}</strong></div>
+      <div><span>120日收益</span><strong>{{ "%.2f%%"|format(feature.return_120d) if feature.return_120d is not none else "—" }}</strong></div>
+      <div><span>波动率（年化）</span><strong>{{ "%.2f%%"|format(feature.volatility_120d * 100) if feature.volatility_120d is not none else "—" }}</strong></div>
+      <div><span>下行波动率</span><strong>{{ "%.2f%%"|format(feature.downside_volatility_120d * 100) if feature.downside_volatility_120d is not none else "—" }}</strong></div>
+      <div><span>120日最大回撤</span><strong>{{ "%.2f%%"|format(feature.max_drawdown_120d) if feature.max_drawdown_120d is not none else "—" }}</strong></div>
+      <div><span>夏普比率</span><strong>{{ "%.3f"|format(feature.sharpe_120d) if feature.sharpe_120d is not none else "—" }}</strong></div>
+      <div><span>索提诺比率</span><strong>{{ "%.3f"|format(feature.sortino_120d) if feature.sortino_120d is not none else "—" }}</strong></div>
+      <div><span>质量评分</span><strong>{{ "%.3f"|format(feature.quality_score) if feature.quality_score is not none else "—" }}</strong></div>
+      {% if feature.turnover_rate is not none %}
+        <div><span>换手率</span><strong>{{ "%.2f%%"|format(feature.turnover_rate) if feature.turnover_rate is not none else "—" }}</strong></div>
+      {% endif %}
+      {% if feature.premium is not none %}
+        <div><span>溢价率</span><strong>{{ "%.2f%%"|format(feature.premium) }}</strong></div>
+      {% endif %}
+      {% if feature.liquidity_score is not none %}
+        <div><span>流动性评分</span><strong>{{ "%.2f"|format(feature.liquidity_score) }}</strong></div>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if exposures %}
+  <section>
+    <div class="section-head"><h2>行业暴露</h2><span class="muted">基于最近季度持仓披露</span></div>
+    <table>
+      <thead><tr><th>行业</th><th>覆盖度</th><th>置信度</th><th>数据来源</th></tr></thead>
+      <tbody>
+        {% for row in exposures %}
+          <tr>
+            <td><strong>{{ row.sector_name }}</strong></td>
+            <td>{{ "%.1f%%"|format(row.coverage) if row.coverage is not none else "—" }}</td>
+            <td>{{ "%.1f%%"|format(row.confidence) if row.confidence is not none else "—" }}</td>
+            <td>{{ row.source }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if quote %}
+  <section>
+    <div class="section-head"><h2>最新行情 ({{ quote.trade_date }})</h2></div>
+    <div class="summary-metrics">
+      <div><span>最新净值</span><strong>{{ "%.4f"|format(quote.close) if quote.close is not none else "—" }}</strong></div>
+      <div><span>日涨跌幅</span><strong>{{ "%.2f%%"|format(quote.change_pct) if quote.change_pct is not none else "—" }}</strong></div>
+      <div><span>成交额</span><strong>{{ "%.0f 万"|format(quote.amount / 10000) if quote.amount is not none else "—" }}</strong></div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section style="margin-top: 1.5rem;">
+    <form method="post" action="/watchlist" style="display: inline;">
+      <input type="hidden" name="asset_type" value="{{ asset.asset_type }}">
+      <input type="hidden" name="code" value="{{ asset.code }}">
+      <input type="hidden" name="name" value="{{ asset.name }}">
+      <input type="hidden" name="reason" value="基金详情页关注{% if signal %} · {{ signal_labels.get(signal.action, signal.action) }}{% endif %}">
+      <button class="button" type="submit">加入观察池</button>
+    </form>
+  </section>
+  <p class="disclaimer">以上数据为研究用途，因子模型输出不作为投资建议。</p>
+{% endblock %}

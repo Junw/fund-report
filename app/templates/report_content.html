@@ -1,0 +1,280 @@
+{% set sector_heat_by_asset = report.summary.get("sector_heat_by_asset", {"industry": report.summary.get("sector_heat", {"status": "history_insufficient", "top": [], "cooling": []}), "concept": {"status": "history_insufficient", "top": [], "cooling": []}}) %}
+{% set sector_heat = sector_heat_by_asset.get("industry", report.summary.get("sector_heat", {"status": "history_insufficient", "top": [], "cooling": []})) %}
+{% set concept_heat = sector_heat_by_asset.get("concept", {"status": "history_insufficient", "top": [], "cooling": []}) %}
+{% set market_state = report.summary.get("market_state", {"score": none, "label": "未知"}) %}
+{% set data_quality = report.summary.get("data_quality", {"status": report.completeness, "label": report.completeness, "warning_count": report.summary.warnings|length}) %}
+{% set industry_up_rows = report.summary.top.get("industry", [])[:10] %}
+{% set industry_down_rows = report.summary.get("bottom", {}).get("industry", [])[:10] %}
+{% set concept_up_rows = report.summary.top.get("concept", [])[:10] %}
+{% set concept_down_rows = report.summary.get("bottom", {}).get("concept", [])[:10] %}
+{% set industry_scale = namespace(up=0, down=0) %}
+{% set concept_scale = namespace(up=0, down=0) %}
+{% for row in industry_up_rows %}
+  {% set value = row.value or 0 %}
+  {% if value > industry_scale.up %}{% set industry_scale.up = value %}{% endif %}
+{% endfor %}
+{% for row in industry_down_rows %}
+  {% set value = row.value or 0 %}
+  {% set abs_value = -value if value < 0 else value %}
+  {% if abs_value > industry_scale.down %}{% set industry_scale.down = abs_value %}{% endif %}
+{% endfor %}
+{% for row in concept_up_rows %}
+  {% set value = row.value or 0 %}
+  {% if value > concept_scale.up %}{% set concept_scale.up = value %}{% endif %}
+{% endfor %}
+{% for row in concept_down_rows %}
+  {% set value = row.value or 0 %}
+  {% set abs_value = -value if value < 0 else value %}
+  {% if abs_value > concept_scale.down %}{% set concept_scale.down = abs_value %}{% endif %}
+{% endfor %}
+{% set quick_assets = [("fund", "权益基金"), ("etf", "ETF")] %}
+
+{% macro mini_rank_panel(asset, label, direction, rows, trade_date) %}
+  <article class="rank-panel compact-rank-panel {{ 'loss-panel' if direction == 'down' else '' }}">
+    <div class="panel-head">
+      <h3>{{ label }}{{ "涨幅榜" if direction == "up" else "跌幅榜" }}</h3>
+      <a href="/rankings?date={{ trade_date }}&asset={{ asset }}&window=1d">更多</a>
+    </div>
+    <table>
+      <thead><tr><th>名次</th><th>名称</th><th>{{ "涨幅" if direction == "up" else "跌幅" }}</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.rank }}</td>
+            <td>
+              <a class="name-cell fund-link" href="https://fund.eastmoney.com/{{ row.code }}.html" target="_blank" rel="noopener noreferrer">{{ row.name }}</a>
+              <span class="code-cell">{{ row.code }}</span>
+            </td>
+            <td class="{{ 'up' if direction == 'up' else 'down' }}">{{ "%.2f"|format(row.value or 0) }}%</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="3" class="muted">暂无数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+{% endmacro %}
+
+{% macro board_move_panel(asset, label, direction, rows, scale, trade_date) %}
+  <article class="sector-move-panel">
+    <div class="panel-head compact">
+      <h3>{{ label }}{{ "涨幅榜" if direction == "up" else "跌幅榜" }}</h3>
+      <a href="/rankings?date={{ trade_date }}&asset={{ asset }}&window=1d">完整榜单</a>
+    </div>
+    <div class="bar-rank-list">
+      {% for row in rows %}
+        {% set value = row.value or 0 %}
+        {% set abs_value = -value if value < 0 else value %}
+        {% set width = ((value if direction == "up" else abs_value) / scale * 100) if scale else 0 %}
+        <div class="bar-rank-row board-row">
+          <a class="bar-rank-name" href="{{ sector_url(row.code, row.name) }}" target="_blank" rel="noopener noreferrer">{{ row.name }}</a>
+          <span class="bar-track"><span class="bar-fill {{ 'up-fill' if direction == 'up' else 'down-fill' }}" style="width: {{ "%.2f"|format(width) }}%"></span></span>
+          <strong class="{{ 'up' if direction == 'up' else 'down' }}">{{ "%.2f"|format(value) }}%</strong>
+          <a class="mini-link" href="{{ sector_funds_url(row.name) }}">基金</a>
+        </div>
+      {% else %}
+        <p class="muted compact-empty-text">暂无{{ label }}{{ "涨幅" if direction == "up" else "跌幅" }}数据</p>
+      {% endfor %}
+    </div>
+  </article>
+{% endmacro %}
+
+<section class="report-shell">
+  {% if reports %}
+    <aside class="report-sidebar">
+      <h3>历史日报</h3>
+      <div class="history-tabs">
+        {% for item in reports %}
+          <a class="history-tab {% if item.trade_date.isoformat() == report.trade_date %}active{% endif %}" href="/reports/{{ item.trade_date }}">
+            <span>{{ item.trade_date }}</span>
+            <small>{{ item.completeness }}</small>
+          </a>
+        {% endfor %}
+      </div>
+    </aside>
+  {% endif %}
+
+  <div class="report-main">
+    <section class="report-head">
+      <div>
+        <p class="eyebrow">{{ report.trade_date }} · {{ report.completeness }}</p>
+        <h1>{{ report.title|replace("A 股", "A股") }}</h1>
+        <p class="muted">生成时间：{{ report.generated_at }}</p>
+      </div>
+      <a class="button ghost" href="/rankings?date={{ report.trade_date }}">完整榜单</a>
+    </section>
+
+    <section class="metric-grid">
+      <div class="metric state-metric">
+        <span>大盘状态</span>
+        <strong>{{ market_state.label }}</strong>
+        {% if market_state.score is not none %}
+          <small class="metric-note">状态分 {{ "%.1f"|format(market_state.score or 0) }}/100</small>
+        {% endif %}
+      </div>
+      <div class="metric quality-metric {{ data_quality.status }}">
+        <span>数据质量</span>
+        <strong>{{ data_quality.label }}</strong>
+        <small class="metric-note">{{ data_quality.warning_count or 0 }} 条提示</small>
+      </div>
+      <div class="metric">
+        <span>上涨家数</span>
+        <strong>{{ "%.0f"|format(report.summary.metrics.get("advancers", 0) or 0) }}</strong>
+      </div>
+      <div class="metric">
+        <span>下跌家数</span>
+        <strong>{{ "%.0f"|format(report.summary.metrics.get("decliners", 0) or 0) }}</strong>
+      </div>
+      <div class="metric">
+        <span>涨停 / 跌停</span>
+        <strong>{{ "%.0f"|format(report.summary.metrics.get("limit_up", 0) or 0) }} / {{ "%.0f"|format(report.summary.metrics.get("limit_down", 0) or 0) }}</strong>
+      </div>
+      <div class="metric">
+        <span>成交额</span>
+        <strong>{{ "%.1f"|format((report.summary.metrics.get("total_amount", 0) or 0) / 100000000) }} 亿</strong>
+        {% set amount_delta = report.summary.metrics.get("total_amount_delta") %}
+        {% if amount_delta is not none %}
+          <small class="metric-note {{ 'up' if amount_delta > 0 else 'down' if amount_delta < 0 else '' }}">
+            较前日{% if amount_delta > 0 %}放量{% elif amount_delta < 0 %}缩量{% else %}持平{% endif %}
+            {{ "%.1f"|format((amount_delta|abs) / 100000000) }} 亿
+          </small>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="full-row">
+      <div class="section-head">
+        <h2>板块雷达</h2>
+        <span class="muted">行业和概念同步展示；点击“基金”查看相关权益基金/ETF</span>
+      </div>
+      <div class="sector-move-grid">
+        {{ board_move_panel("industry", "行业", "up", industry_up_rows, industry_scale.up, report.trade_date) }}
+        {{ board_move_panel("industry", "行业", "down", industry_down_rows, industry_scale.down, report.trade_date) }}
+        {{ board_move_panel("concept", "概念", "up", concept_up_rows, concept_scale.up, report.trade_date) }}
+        {{ board_move_panel("concept", "概念", "down", concept_down_rows, concept_scale.down, report.trade_date) }}
+      </div>
+    </section>
+
+    {% set ai_advice = report.summary.get("ai_advice") %}
+    <section class="full-row">
+      <article class="dashboard-panel ai-advice-panel">
+        <div class="panel-head flush">
+          <h2>AI建议</h2>
+          {% if ai_advice and ai_advice.get("model") %}<span>{{ ai_advice.get("model") }}</span>{% endif %}
+        </div>
+        {% if ai_advice and ai_advice.get("status") == "success" and ai_advice.get("content") %}
+          <div class="ai-advice-text">{{ ai_advice.get("content") }}</div>
+        {% elif ai_advice %}
+          <p class="muted">{{ ai_advice.get("message") or "AI建议暂不可用。" }}</p>
+        {% else %}
+          <p class="muted">这份历史日报尚未生成AI建议，重新运行收盘任务或刷新基金后会写入。</p>
+        {% endif %}
+      </article>
+    </section>
+
+    <section class="full-row">
+      <article class="dashboard-panel advice-panel">
+        <h2>规则化建议</h2>
+        <div class="advice-list">
+          {% for item in report.advice %}
+            <article class="advice {{ item.level }}">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.body }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+
+    {% if report.summary.news %}
+      <section class="full-row">
+        <article class="dashboard-panel">
+          <div class="panel-head flush">
+            <h2>热点新闻参考</h2>
+            <span>{{ report.summary.news|length }} 条</span>
+          </div>
+          <div class="news-list">
+            {% for item in report.summary.news[:6] %}
+              <a class="news-item" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.published_at }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </article>
+      </section>
+    {% endif %}
+
+    {% if sector_heat.top or concept_heat.top %}
+      <section>
+        <div class="section-head">
+          <h2>板块热度</h2>
+          <a href="/heat?date={{ report.trade_date }}">查看全部</a>
+        </div>
+        <div class="heat-summary-grid">
+          <article class="rank-panel">
+            <div class="panel-head"><h3>行业热度 Top 10</h3><span>{{ sector_heat.status_label or "" }}</span></div>
+            <table>
+              <thead><tr><th>排名</th><th>板块</th><th>热度</th><th>动作</th><th>基金</th></tr></thead>
+              <tbody>
+                {% for row in sector_heat.top[:10] %}
+                  <tr>
+                    <td>{{ row.heat_rank }}</td>
+                    <td><a class="name-cell fund-link" href="{{ sector_url(row.code, row.name) }}" target="_blank" rel="noopener noreferrer">{{ row.name }}</a></td>
+                    <td><span class="heat-badge {{ row.heat_level }}">{{ "%.1f"|format(row.heat_score or 0) }}</span></td>
+                    <td><strong>{{ row.action_label or "观察" }}</strong><span class="code-cell">{{ row.status_label }}</span></td>
+                    <td><a href="{{ row.funds_url }}">{{ row.related_count }} 只</a></td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5" class="muted">暂无行业热度数据</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </article>
+          <article class="rank-panel">
+            <div class="panel-head"><h3>概念热度 Top 10</h3><span>{{ concept_heat.status_label or "" }}</span></div>
+            <table>
+              <thead><tr><th>排名</th><th>板块</th><th>热度</th><th>动作</th><th>基金</th></tr></thead>
+              <tbody>
+                {% for row in concept_heat.top[:10] %}
+                  <tr>
+                    <td>{{ row.heat_rank }}</td>
+                    <td><a class="name-cell fund-link" href="{{ sector_url(row.code, row.name) }}" target="_blank" rel="noopener noreferrer">{{ row.name }}</a></td>
+                    <td><span class="heat-badge {{ row.heat_level }}">{{ "%.1f"|format(row.heat_score or 0) }}</span></td>
+                    <td><strong>{{ row.action_label or "观察" }}</strong><span class="code-cell">{{ row.status_label }}</span></td>
+                    <td><a href="{{ row.funds_url }}">{{ row.related_count }} 只</a></td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="5" class="muted">暂无概念热度数据</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </article>
+        </div>
+      </section>
+    {% endif %}
+
+    <section>
+      <h2>榜单速览</h2>
+      <div class="rank-grid snapshot-grid">
+        {% for asset, label in quick_assets %}
+          {{ mini_rank_panel(asset, label, "up", report.summary.top.get(asset, [])[:8], report.trade_date) }}
+        {% endfor %}
+        {% for asset, label in quick_assets %}
+          {{ mini_rank_panel(asset, label, "down", report.summary.get("bottom", {}).get(asset, [])[:8], report.trade_date) }}
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if report.summary.warnings %}
+      <section class="warning-band">
+        <h2>数据缺口</h2>
+        {% for item in report.summary.warnings %}
+          <p>{{ item }}</p>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <p class="disclaimer">{{ report.summary.disclaimer }}</p>
+  </div>
+</section>
