@@ -18,4 +18,5 @@ stock-report.env
 id_rsa*
 id_ed25519*
 AGENTS.md
+NAS_DEPLOYMENT.local.md
 .agents/
